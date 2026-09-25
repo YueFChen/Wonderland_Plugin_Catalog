@@ -1,12 +1,9 @@
 name: Plugin catalog
 
 on:
+  # The main ruleset requires the validate check on every pull request.
+  # Avoid path filters here so unrelated documentation edits cannot leave it pending.
   pull_request:
-    paths:
-      - 'catalog/**'
-      - 'scripts/validate-plugin-catalog.py'
-      - 'scripts/prepare-plugin-catalog-pages.py'
-      - '.github/workflows/plugin-catalog.yml'
   push:
     branches: [main]
     paths:
