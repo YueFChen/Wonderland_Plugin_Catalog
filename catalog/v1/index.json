@@ -1,5 +1,39 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-25T00:00:00Z",
-  "plugins": []
+  "generatedAt": "2026-09-25T16:28:36Z",
+  "plugins": [
+    {
+      "id": "my_wonderland",
+      "name": "我的奇域",
+      "description": "查询并归档奇域作品数据。",
+      "author": "YueFChen",
+      "repositoryUrl": "https://github.com/YueFChen/my_wonderland",
+      "version": "0.1.0",
+      "releaseNotesUrl": "https://github.com/YueFChen/my_wonderland/releases/tag/v0.1.0",
+      "downloadUrl": "https://github.com/YueFChen/my_wonderland/releases/download/v0.1.0/my_wonderland-0.1.0-windows-x86_64.wplug",
+      "sha256": "2767349574b01926e12ea422fba8d31049af2d3eb831ee39f9ebb85475373ffb",
+      "sizeBytes": 709207,
+      "hostCompatibility": {
+        "minCoreVersion": "0.1.0",
+        "maxCoreVersionExclusive": "1.0.0",
+        "protocol": {
+          "minVersion": "1.0.0",
+          "maxVersionExclusive": "2.0.0"
+        }
+      },
+      "uiBridgeCompatibility": {
+        "minVersion": "1.0.0",
+        "maxVersionExclusive": "2.0.0"
+      },
+      "platform": {
+        "os": "windows",
+        "architecture": "x86_64",
+        "abi": "msvc"
+      },
+      "capabilities": [
+        "account.read",
+        "account.authed_get"
+      ]
+    }
+  ]
 }
