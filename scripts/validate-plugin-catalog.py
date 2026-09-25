@@ -12,12 +12,13 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
-from datetime import datetime
 from pathlib import Path
 from stat import S_ISLNK
 
+from catalog_source import CatalogSourceError, load_catalog_plugins
+
 ROOT = Path(__file__).resolve().parents[1]
-INDEX = ROOT / "catalog" / "v1" / "index.json"
+PLUGIN_RECORDS = ROOT / "catalog" / "v1" / "plugins"
 MAX_PACKAGE_BYTES = 100 * 1024 * 1024
 MAX_PACKAGE_FILES = 10_000
 MAX_EXPANDED_PACKAGE_BYTES = 512 * 1024 * 1024
@@ -300,25 +301,12 @@ def semver_key(value: str) -> tuple:
 
 def main() -> int:
     try:
-        index = json.loads(INDEX.read_text(encoding="utf-8"))
-        if set(index) != {"schemaVersion", "generatedAt", "plugins"} or index["schemaVersion"] != 1:
-            fail("index.json top-level fields or schemaVersion are invalid")
-        if not isinstance(index["generatedAt"], str):
-            fail("generatedAt must be an RFC 3339 date-time")
-        generated_at = datetime.fromisoformat(index["generatedAt"].replace("Z", "+00:00"))
-        if generated_at.tzinfo is None:
-            fail("generatedAt must include a timezone")
-        if not isinstance(index["plugins"], list) or len(index["plugins"]) > 500:
-            fail("plugins must be a list containing at most 500 entries")
-        if any(not isinstance(entry, dict) for entry in index["plugins"]):
-            fail("every plugin catalog entry must be an object")
-        if len({entry.get("id") for entry in index["plugins"]}) != len(index["plugins"]):
-            fail("plugin IDs must be unique")
-        for entry in index["plugins"]:
+        entries = load_catalog_plugins(PLUGIN_RECORDS)
+        for entry in entries:
             validate_package(entry)
-        print(f"Validated {len(index['plugins'])} plugin catalog entr{'y' if len(index['plugins']) == 1 else 'ies'}.")
+        print(f"Validated {len(entries)} plugin catalog entr{'y' if len(entries) == 1 else 'ies'}.")
         return 0
-    except (CatalogError, OSError, json.JSONDecodeError, KeyError, TypeError) as error:
+    except (CatalogError, CatalogSourceError, OSError, json.JSONDecodeError, KeyError, TypeError) as error:
         print(f"Plugin catalog validation failed: {error}", file=sys.stderr)
         return 1
 

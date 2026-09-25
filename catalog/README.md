@@ -6,11 +6,11 @@ Core 从本仓库的 GitHub Pages 读取 `catalog/v1/index.json`。插件包由�
 
 1. 按 `template_plugin` 规范生成 release `.wplug`，文件名应为 `{id}-{version}-windows-{architecture}.wplug`。
 2. 在作者的公开 GitHub 仓库发布版本化 Release，上传该文件。不要替换已收录版本的 Release 附件。
-3. 向 `catalog/v1/index.json` 提交 PR，新增一条记录。字段和格式参见 `v1/index.schema.json`。
-4. 自动检查会下载附件并验证 URL、大小、SHA-256、ZIP 路径、插件 manifest 与目录元数据。至少一位维护者审核通过后合并。
-5. 合并到 `main` 后，GitHub Actions 会把目录部署到 Pages。
+3. 在 `catalog/v1/plugins/{id}.json` 新增一个插件记录文件，并提交 PR。JSON 内容是一条完整插件记录，文件名必须与记录中的 `id` 一致；字段格式参见 `v1/index.schema.json` 中 `plugins.items` 的定义。
+4. 自动检查会扫描该目录下所有直接子级 `.json` 文件，下载附件并验证 URL、大小、SHA-256、ZIP 路径、插件 manifest 与目录元数据。至少一位维护者审核通过后合并。
+5. 合并到 `main` 后，GitHub Actions 会按插件 ID 排序生成 `catalog/v1/index.json` 并部署到 Pages。这个总索引是构建产物，不直接编辑或提交。
 
-`maxCoreVersionExclusive` 和 `protocol.maxVersionExclusive` 是不包含上界。目录单条记录对应一个当前推荐版本；发布更新时用新版本替换该插件记录。用户本地安装的旧版本不会因目录更新而被自动替换。
+登记新插件时新增一个记录文件；发布已登记插件的新版本时，更新该插件自己的记录文件。`maxCoreVersionExclusive` 和 `protocol.maxVersionExclusive` 是不包含上界。每个插件记录对应一个当前推荐版本；用户本地安装的旧版本不会因目录更新而被自动替换。
 
 ## 信任边界
 
