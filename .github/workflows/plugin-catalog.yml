@@ -8,6 +8,7 @@ on:
     branches: [main]
     paths:
       - 'catalog/**'
+      - 'scripts/catalog_source.py'
       - 'scripts/validate-plugin-catalog.py'
       - 'scripts/prepare-plugin-catalog-pages.py'
       - '.github/workflows/plugin-catalog.yml'
