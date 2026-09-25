@@ -1,0 +1,53 @@
+name: Plugin catalog
+
+on:
+  pull_request:
+    paths:
+      - 'catalog/**'
+      - 'scripts/validate-plugin-catalog.py'
+      - 'scripts/prepare-plugin-catalog-pages.py'
+      - '.github/workflows/plugin-catalog.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'catalog/**'
+      - 'scripts/validate-plugin-catalog.py'
+      - 'scripts/prepare-plugin-catalog-pages.py'
+      - '.github/workflows/plugin-catalog.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate catalog and release packages
+        run: python scripts/validate-plugin-catalog.py
+
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - name: Prepare Pages artifact
+        run: python scripts/prepare-plugin-catalog-pages.py
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Deploy catalog
+        id: deployment
+        uses: actions/deploy-pages@v4
