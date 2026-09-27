@@ -1,0 +1,9 @@
+{
+  "id": "comment_collector",
+  "name": "奇域评论采集器",
+  "description": "无需登录，采集奇域关卡公开评论，并管理本地归档与收藏。",
+  "author": "YueFChen",
+  "repositoryUrl": "https://github.com/YueFChen/comment_collector",
+  "updateManifestUrl": "https://github.com/YueFChen/comment_collector/releases/latest/download/comment_collector-update.json",
+  "signingPublicKey": "f96a9698f8e24481df2eff31d6d654636693d53beba24329837ec61f789ce5c7"
+}
