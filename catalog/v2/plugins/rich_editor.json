@@ -1,0 +1,9 @@
+{
+  "id": "rich_editor",
+  "name": "奇域富文本编辑器",
+  "description": "标记文本编辑、实时预览、色库与背景图库。",
+  "author": "YueFChen",
+  "repositoryUrl": "https://github.com/YueFChen/rich_editor",
+  "updateManifestUrl": "https://github.com/YueFChen/rich_editor/releases/latest/download/rich_editor-update.json",
+  "signingPublicKey": "31a775e5aae522c4272bcc39547c89cfd78d2df1c768df1dd33d80fa05416fef"
+}
