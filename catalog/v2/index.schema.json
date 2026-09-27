@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yuefchen.github.io/Wonderland_Plugin_Catalog/catalog/v2/index.schema.json",
+  "title": "Wonderland Assistant Plugin Registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "generatedAt", "plugins"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "plugins": {
+      "type": "array",
+      "maxItems": 500,
+      "items": { "$ref": "#/$defs/plugin" }
+    }
+  },
+  "$defs": {
+    "plugin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "name", "description", "author", "repositoryUrl",
+        "updateManifestUrl", "signingPublicKey"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "description": { "type": "string", "maxLength": 2000 },
+        "author": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "repositoryUrl": { "type": "string", "format": "uri" },
+        "updateManifestUrl": { "type": "string", "format": "uri" },
+        "signingPublicKey": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    }
+  }
+}

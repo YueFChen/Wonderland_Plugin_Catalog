@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Load the reviewed per-plugin source records used to build the public index."""
+"""Load the reviewed per-plugin identity registrations used to build the public index."""
 
 import json
 import re

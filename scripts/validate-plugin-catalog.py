@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the reviewed static catalog and its public GitHub Release assets."""
+"""Validate registered plugin identities and signed current GitHub Release assets."""
 
 from __future__ import annotations
 
@@ -15,11 +15,14 @@ import zipfile
 from pathlib import Path
 from stat import S_ISLNK
 
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from catalog_source import CatalogSourceError, load_catalog_plugins
 
 ROOT = Path(__file__).resolve().parents[1]
-PLUGIN_RECORDS = ROOT / "catalog" / "v1" / "plugins"
+PLUGIN_RECORDS = ROOT / "catalog" / "v2" / "plugins"
 MAX_PACKAGE_BYTES = 100 * 1024 * 1024
+MAX_UPDATE_MANIFEST_BYTES = 1024 * 1024
 MAX_PACKAGE_FILES = 10_000
 MAX_EXPANDED_PACKAGE_BYTES = 512 * 1024 * 1024
 MAX_EXPANDED_FILE_BYTES = 128 * 1024 * 1024
@@ -36,6 +39,91 @@ class CatalogError(ValueError):
 
 def fail(message: str) -> None:
     raise CatalogError(message)
+
+
+def validate_registration(registration: dict) -> None:
+    required = {
+        "id", "name", "description", "author", "repositoryUrl",
+        "updateManifestUrl", "signingPublicKey",
+    }
+    if (
+        not isinstance(registration, dict)
+        or set(registration) != required
+        or not isinstance(registration.get("id"), str)
+        or not re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", registration["id"])
+    ):
+        fail("plugin registration has missing or invalid fields")
+    for key, limit in {
+        "name": 120,
+        "description": 2000,
+        "author": 120,
+        "repositoryUrl": 500,
+        "updateManifestUrl": 2000,
+        "signingPublicKey": 64,
+    }.items():
+        if not isinstance(registration[key], str) or len(registration[key]) > limit:
+            fail(f"{registration['id']}: {key} must be a string of at most {limit} characters")
+    if not registration["name"].strip() or not registration["author"].strip():
+        fail(f"{registration['id']}: name and author cannot be empty")
+
+    repo = repo_path(registration["repositoryUrl"])
+    expected_update_url = (
+        f"https://github.com/{repo}/releases/latest/download/"
+        f"{registration['id']}-update.json"
+    )
+    if registration["updateManifestUrl"] != expected_update_url:
+        fail(f"{registration['id']}: updateManifestUrl must use its stable latest-release asset URL")
+    if not re.fullmatch(r"[a-f0-9]{64}", registration["signingPublicKey"]):
+        fail(f"{registration['id']}: signingPublicKey must be a 32-byte lowercase hex Ed25519 key")
+
+    envelope_bytes = download(registration["updateManifestUrl"], MAX_UPDATE_MANIFEST_BYTES)
+    try:
+        envelope = json.loads(envelope_bytes)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        fail(f"{registration['id']}: signed update manifest is invalid JSON: {error}")
+    if (
+        not isinstance(envelope, dict)
+        or set(envelope) != {"schemaVersion", "payload", "signature"}
+        or envelope.get("schemaVersion") != 1
+        or not isinstance(envelope.get("payload"), str)
+        or not isinstance(envelope.get("signature"), str)
+        or not re.fullmatch(r"[a-f0-9]{128}", envelope["signature"])
+    ):
+        fail(f"{registration['id']}: signed update manifest envelope is invalid")
+    payload_bytes = envelope["payload"].encode("utf-8")
+    if len(payload_bytes) > MAX_UPDATE_MANIFEST_BYTES:
+        fail(f"{registration['id']}: signed update payload is too large")
+    try:
+        Ed25519PublicKey.from_public_bytes(bytes.fromhex(registration["signingPublicKey"])).verify(
+            bytes.fromhex(envelope["signature"]), payload_bytes
+        )
+        payload = json.loads(payload_bytes)
+    except InvalidSignature:
+        fail(f"{registration['id']}: update manifest signature does not match the registered key")
+    except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        fail(f"{registration['id']}: signed update payload is invalid: {error}")
+
+    update_fields = {
+        "schemaVersion", "id", "version", "releaseNotesUrl", "downloadUrl", "sha256",
+        "sizeBytes", "hostCompatibility", "uiBridgeCompatibility", "platform", "capabilities",
+        "networkPublicHosts", "provides", "requires",
+    }
+    if (
+        not isinstance(payload, dict)
+        or set(payload) != update_fields
+        or payload.get("schemaVersion") != 1
+        or payload.get("id") != registration["id"]
+    ):
+        fail(f"{registration['id']}: signed update payload fields do not match the registration")
+    package_entry = {
+        "id": registration["id"],
+        "name": registration["name"],
+        "description": registration["description"],
+        "author": registration["author"],
+        "repositoryUrl": registration["repositoryUrl"],
+        **{key: value for key, value in payload.items() if key != "schemaVersion"},
+    }
+    validate_package(package_entry)
 
 
 def is_release_url(url: str, repo: str, plugin_id: str, version: str, architecture: str) -> bool:
@@ -169,10 +257,16 @@ def validate_package(entry: dict) -> None:
         "uiBridgeCompatibility": entry["uiBridgeCompatibility"],
         "platform": entry["platform"],
         "capabilities": sorted(entry["capabilities"]),
+        "networkPublicHosts": sorted(entry["networkPublicHosts"]),
+        "provides": entry["provides"],
+        "requires": entry["requires"],
     }
     actual = {key: manifest.get(key) for key in expected}
     actual["capabilities"] = sorted(actual.get("capabilities") or [])
     actual["uiBridgeCompatibility"] = manifest.get("ui", {}).get("bridgeCompatibility") if manifest.get("ui") else None
+    actual["networkPublicHosts"] = sorted(manifest.get("networkPublicHosts") or [])
+    actual["provides"] = manifest.get("provides") or []
+    actual["requires"] = manifest.get("requires") or []
     if actual != expected:
         fail(f"{plugin_id}: catalog metadata does not match manifest.json")
     if manifest.get("manifestVersion") != 2:
@@ -197,6 +291,7 @@ def validate_entry_shape(entry: dict) -> None:
     required = {
         "id", "name", "description", "author", "repositoryUrl", "version", "downloadUrl",
         "sha256", "sizeBytes", "hostCompatibility", "uiBridgeCompatibility", "platform", "capabilities",
+        "networkPublicHosts", "provides", "requires",
     }
     allowed = required | {"releaseNotesUrl"}
     if not isinstance(entry, dict) or not required.issubset(entry) or not set(entry).issubset(allowed):
@@ -222,6 +317,52 @@ def validate_entry_shape(entry: dict) -> None:
         fail(f"{entry['id']}: capabilities must be a unique list")
     if any(not isinstance(cap, str) or not cap.strip() or len(cap) > 128 for cap in entry["capabilities"]):
         fail(f"{entry['id']}: capability names are invalid")
+    if not isinstance(entry["networkPublicHosts"], list) or len(entry["networkPublicHosts"]) > 32:
+        fail(f"{entry['id']}: networkPublicHosts must be a list of at most 32 hosts")
+    if len(set(entry["networkPublicHosts"])) != len(entry["networkPublicHosts"]):
+        fail(f"{entry['id']}: networkPublicHosts must be unique")
+    host_pattern = re.compile(r"^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*$")
+    if any(not isinstance(host, str) or host != host.lower() or not host_pattern.fullmatch(host) for host in entry["networkPublicHosts"]):
+        fail(f"{entry['id']}: networkPublicHosts contains an invalid host")
+    if entry["networkPublicHosts"] and "network.public" not in entry["capabilities"]:
+        fail(f"{entry['id']}: networkPublicHosts requires the network.public capability")
+    if not isinstance(entry["provides"], list) or not isinstance(entry["requires"], list):
+        fail(f"{entry['id']}: provides and requires must be lists")
+    if len(entry["provides"]) > 32 or len(entry["requires"]) > 32:
+        fail(f"{entry['id']}: too many plugin service declarations")
+    provided_ids = []
+    for service in entry["provides"]:
+        if not isinstance(service, dict) or set(service) != {"id", "version", "methods"}:
+            fail(f"{entry['id']}: provides contains an invalid service")
+        if not isinstance(service["id"], str) or not valid_service_id(service["id"]):
+            fail(f"{entry['id']}: provided service ID is invalid")
+        semver_key(service["version"])
+        methods = service["methods"]
+        if not isinstance(methods, list) or not methods or len(methods) > 128 or len(set(methods)) != len(methods):
+            fail(f"{entry['id']}: provided service methods are invalid")
+        if any(not isinstance(method, str) or not valid_service_method(method) for method in methods):
+            fail(f"{entry['id']}: provided service method name is invalid")
+        provided_ids.append(service["id"])
+    if len(set(provided_ids)) != len(provided_ids):
+        fail(f"{entry['id']}: provided service IDs must be unique")
+    required_ids = []
+    for requirement in entry["requires"]:
+        if not isinstance(requirement, dict) or not {"id", "minVersion", "maxVersionExclusive", "optional"}.issubset(requirement) or not set(requirement).issubset({"id", "minVersion", "maxVersionExclusive", "optional", "methods"}):
+            fail(f"{entry['id']}: requires contains an invalid service")
+        if not isinstance(requirement["id"], str) or not valid_service_id(requirement["id"]):
+            fail(f"{entry['id']}: required service ID is invalid")
+        if not isinstance(requirement["optional"], bool):
+            fail(f"{entry['id']}: required service optional flag is invalid")
+        if semver_key(requirement["minVersion"]) >= semver_key(requirement["maxVersionExclusive"]):
+            fail(f"{entry['id']}: required service range must have increasing bounds")
+        methods = requirement.get("methods", [])
+        if not isinstance(methods, list) or len(methods) > 128 or len(set(methods)) != len(methods):
+            fail(f"{entry['id']}: required service methods are invalid")
+        if any(not isinstance(method, str) or not valid_service_method(method) for method in methods):
+            fail(f"{entry['id']}: required service method name is invalid")
+        required_ids.append(requirement["id"])
+    if len(set(required_ids)) != len(required_ids):
+        fail(f"{entry['id']}: required service IDs must be unique")
     host = entry["hostCompatibility"]
     platform = entry["platform"]
     if not isinstance(host, dict) or set(host) != {"minCoreVersion", "maxCoreVersionExclusive", "protocol"}:
@@ -284,6 +425,36 @@ def repo_path(repository_url: str) -> str:
     return path
 
 
+def valid_service_id(value: str) -> bool:
+    parts = value.split(".")
+    return (
+        len(value) <= 128
+        and len(parts) >= 2
+        and all(
+            part
+            and part[0].islower()
+            and part[0].isascii()
+            and all(char in "abcdefghijklmnopqrstuvwxyz0123456789_-" for char in part)
+            for part in parts
+        )
+    )
+
+
+def valid_service_method(value: str) -> bool:
+    parts = value.split(".")
+    return (
+        len(value) <= 128
+        and bool(value)
+        and all(
+            part
+            and part[0].islower()
+            and part[0].isascii()
+            and all(char in "abcdefghijklmnopqrstuvwxyz0123456789_" for char in part)
+            for part in parts
+        )
+    )
+
+
 def semver_key(value: str) -> tuple:
     match = re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z.-]+))?", value)
     if not match:
@@ -303,8 +474,8 @@ def main() -> int:
     try:
         entries = load_catalog_plugins(PLUGIN_RECORDS)
         for entry in entries:
-            validate_package(entry)
-        print(f"Validated {len(entries)} plugin catalog entr{'y' if len(entries) == 1 else 'ies'}.")
+            validate_registration(entry)
+        print(f"Validated {len(entries)} plugin registration{'s' if len(entries) != 1 else ''} and signed current release{'s' if len(entries) != 1 else ''}.")
         return 0
     except (CatalogError, CatalogSourceError, OSError, json.JSONDecodeError, KeyError, TypeError) as error:
         print(f"Plugin catalog validation failed: {error}", file=sys.stderr)

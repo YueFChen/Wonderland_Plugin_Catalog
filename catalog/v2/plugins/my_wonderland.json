@@ -1,0 +1,9 @@
+{
+  "id": "my_wonderland",
+  "name": "我的奇域",
+  "description": "查询并归档奇域作品数据。",
+  "author": "YueFChen",
+  "repositoryUrl": "https://github.com/YueFChen/my_wonderland",
+  "updateManifestUrl": "https://github.com/YueFChen/my_wonderland/releases/latest/download/my_wonderland-update.json",
+  "signingPublicKey": "8940142e21d90ebdafb6bc69c82b803c9cd24a2b4b7de8f060b2126e5c9be6ee"
+}
