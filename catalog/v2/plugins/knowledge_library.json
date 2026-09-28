@@ -1,0 +1,9 @@
+{
+  "id": "knowledge_library",
+  "name": "千星奇域知识库",
+  "description": "浏览千星奇域官方教程、查询节点参数、镜像文档，并通过本地检索与 MCP 提供来源链接。",
+  "author": "YueFChen",
+  "repositoryUrl": "https://github.com/YueFChen/knowledge_library",
+  "updateManifestUrl": "https://github.com/YueFChen/knowledge_library/releases/latest/download/knowledge_library-update.json",
+  "signingPublicKey": "d2407ddfd76d012c9e3089f599b56cba454894d8e85cadcc0eb8e940db3cdf4b"
+}
