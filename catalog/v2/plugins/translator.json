@@ -1,0 +1,9 @@
+{
+  "id": "translator",
+  "name": "翻译工作台",
+  "description": "CSV 翻译、术语与记忆管理；模型网络和文件操作经 Core 调度。",
+  "author": "YueFChen",
+  "repositoryUrl": "https://github.com/YueFChen/translator",
+  "updateManifestUrl": "https://github.com/YueFChen/translator/releases/latest/download/translator-update.json",
+  "signingPublicKey": "9838af72865f5e9cc4f4e7dbee95cb718e6edad1a7119d984f2caeb198da9f8d"
+}
